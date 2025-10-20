@@ -1,0 +1,83 @@
+name: Build and Deploy with Self-Hosted Runner
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: 🧾 Checkout code
+        uses: actions/checkout@v3
+
+      - name: 🔐 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: 🔐 Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: 🐳 Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: 🛠️ Install Nginx
+        run: |
+          if ! command -v nginx &> /dev/null; then
+            echo "Installing Nginx..."
+            sudo apt-get update
+            sudo apt-get install -y nginx
+          fi
+          sudo mkdir -p /etc/nginx/sites-available
+          sudo mkdir -p /etc/nginx/sites-enabled
+
+      - name: 🚀 Deploy Container
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker stop streamlit-container 2>/dev/null || true
+          docker rm streamlit-container 2>/dev/null || true
+
+          docker run -d --name streamlit-container -p 8501:8501 \
+            --restart always $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+          echo "Creating Nginx configuration..."
+          cat > /tmp/streamlit_nginx <<'EOL'
+          server {
+              listen 80;
+              server_name localhost;
+
+              location / {
+                  proxy_pass http://localhost:8501;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+
+                  proxy_http_version 1.1;
+                  proxy_set_header Upgrade $http_upgrade;
+                  proxy_set_header Connection "upgrade";
+              }
+          }
+          EOL
+
+          sudo mv /tmp/streamlit_nginx /etc/nginx/sites-available/streamlit
+          sudo ln -sf /etc/nginx/sites-available/streamlit /etc/nginx/sites-enabled/streamlit
+          sudo nginx -s reload

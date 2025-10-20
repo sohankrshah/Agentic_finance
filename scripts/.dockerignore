@@ -1,0 +1,18 @@
+# Version control
+.git
+.gitignore
+.github/
+
+# OS and editor artifacts
+__pycache__/
+.DS_Store
+*.log
+
+# Docs and media
+README.md
+LICENSE
+Images/
+
+# Local environments and secrets
+.env
+
