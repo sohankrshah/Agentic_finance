@@ -28,7 +28,7 @@ Streamlit for UI
 CrewAI for agent orchestration
 
 yFinance for market data
-
+```
 Crafted by Sohan Kumar Shah Final-year B.Tech CSE @ KIIT University Architecting intelligent tools for real-world impact
 
 
