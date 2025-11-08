@@ -12,7 +12,8 @@ Built with Streamlit, CrewAI, and yFinance, it lets users:
 
 Whether you're a student, trader, or data enthusiast—this tool helps you decode the market with clarity and speed.
 
-**🔗 Live Demo:** [https://agentic-finance-mxr5.onrender.com](https://agentic-finance-mxr5.onrender.com)
+**🔗 Live Demo:** [Demo Link
+](https://agentic-finance-mxr5.onrender.com)
 ---
 
 ## 🚀 Quick Start
